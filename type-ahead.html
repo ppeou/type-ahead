@@ -1,0 +1,223 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/polymer/lib/utils/debounce.html">
+<link rel="import" href="../bower_components/vaadin-combo-box/vaadin-combo-box-light.html">
+<link rel="import" href="../bower_components/paper-input/paper-input.html">
+<link rel="import" href="md-icons.html">
+<link rel="import" href="type-ahead-style.html">
+<dom-module id="type-ahead">
+    <template>
+        <style include="type-ahead-style md-icons">
+            :host {
+                display: block;
+            }
+                :host[hidden], :host.hidden {
+                    display: none;
+                }
+                
+        </style>
+        <vaadin-combo-box-light id="combo"
+                                attr-for-value="value"
+                                allow-custom-value="[[allowCustomValue]]"
+                                filter="{{filterText}}"
+                                on-blur="_onBlur"
+                                loading="[[loading]]"
+                                overlay-vertical-offset="[[overlayVerticalOffset]]"                                
+                                filtered-items="[[filteredItems]]"
+                                items="[[items]]"
+                                item-value-path="[[itemValuePath]]"
+                                item-label-path="[[itemLabelPath]]"
+                                item-display-path="[[itemDisplayPath]]"
+                                hidden$="[[hidden]]"
+                                on-custom-value-set="_onSelectedItemChanged"
+                                on-selected-item-changed="_onSelectedItemChanged"
+                                on-vaadin-dropdown-closed="_onVaadinEvent"
+                                on-vaadin-dropdown-opened="_onVaadinEvent"> 
+            <paper-input id="display"
+                         label="[[label]]"
+                         value="[[text]]"
+                         no-label-float="[[noLabelFloat]]"
+                         always-float-label="[[alwaysFloatLabel]]"
+                         placeholder$="[[placeholder]]"
+                         auto-validate$="[[autoValidate]]"
+                         disabled$="[[disabled]]"
+                         invalid="[[invalid]]">
+                <i suffix class="md-icon">arrow_drop_down</i>
+            </paper-input>
+            <template>
+                <style>
+                    :host{color: red;}
+                </style>
+                <span title="[[_getItemDisplayName(item)]]">[[_getItemDisplayName(item)]]</span>
+            </template>
+        </vaadin-combo-box-light>
+    </template>
+    <script>
+        /**
+         * `type-ahead`
+         *
+         *
+         * @customElement
+         * @polymer
+         * @demo demo/index.html
+         */
+        let idx = 1;
+        class TypeAhead extends Polymer.Element {
+            static get is() { return 'type-ahead'; }
+            static get observers() {
+                return [
+                    '_onValueTextChanged(value, text)',
+                    '_onDropdownListChanged(dropdownList)',
+                   '_onLabelDisplayPathChanged(itemLabelPath,itemDisplayPath)'
+                ];
+            }
+            connectedCallback() {
+                super.connectedCallback();
+                this._ensureAttribute('always-float-label', '');
+                if (this.filterService) {
+                    this._createPropertyObserver('filterText', '_onFilterTextChanged', true);
+                }
+                window['typeAhead' + idx] = this;
+                idx++;
+            }
+            static get properties() {
+                return {
+                    label: String,
+                    minimumSearchChar: { type: Number, value: 3 },
+                    filterText: String,
+                    placeholder: String,
+                    alwaysFloatLabel: { type: Boolean, value: false },
+                    disabled: { type: Boolean, value: false },
+                    invalid: { type: Boolean, value: false },
+                    autoValidate: { type: Boolean, value: false },
+                    filterService: { type: Boolean, value: false },
+                    itemValuePath: String,
+                    itemLabelPath: String,
+                    itemDisplayPath: String,
+                    value: { type: String, notify: true },
+                    text: { type: String, notify: true }
+                };
+            }            
+            _onSelectedItemChanged(e) {
+                if (e) {
+                    const item = e.detail.value;
+                    const { label, value } = this._getItemValueLabel(item);
+                    console.log('>>>', label, value, e.detail.value);
+
+                    this.setProperties({ 'text': label, 'value': value });
+
+                    this._dispatchEvent(e);
+                    if (this.filterService) {
+                        this._clearFilteredItems();
+                    }
+                }
+            }
+            _onVaadinEvent(e) {
+                e && this._dispatchEvent(e);
+            }
+
+            _onDropdownListChanged(value) {
+                if (this.filterService) {
+                    console.log('here',value);
+                    //this.set('filteredItems',value);
+                    this.set('items', value);
+                    this.loading = false;
+                }
+                else {
+                    this.items = value;
+                }
+            }
+
+            _onValueTextChanged(value, text) {
+                this._debounce({
+                    id: 'valueText', timeout: 1, fn: () => {
+                        this.setProperties({
+                            '$.combo.value': value,
+                            '$.display.value': text,
+                        });
+                    }
+                });
+            }
+
+            _onFilterTextChanged(text) {
+                if (!this.firstFilterTextChange) {
+                    this.lastFilterText = text;
+                    this.firstFilterTextChange = true;
+                    this.filterText = undefined;
+                    return;
+                }
+                if (this.filterText !== undefined) {
+                    this._debounce({ id: 'filterText', timeout: 400, fn: () => {
+                        if(text.length == 0 || (text.length >= this.minimumSearchChar)) {
+                            if (text !== this.lastFilterText) {
+                                this.loading = true;
+                                this.lastFilterText = text;
+                                this._clearFilteredItems();
+                                this._dispatchEvent({
+                                    type: 'filter-changed',
+                                    target: this, detail: { value: text }
+                                });
+                            }
+                        }
+                    } });
+                }
+            }
+
+            _onBlur(e) {
+                if (this.filterService) {
+                    this._clearFilteredItems();
+                }
+            }
+
+            _getItemValueLabel(item) {
+                const label = Polymer.Path.get(item, this.itemLabelPath);
+                const value = Polymer.Path.get(item, this.itemValuePath);
+
+                return { label, value };
+            }
+
+            _clearFilteredItems() {
+                //let length;
+                //['filteredItems', 'dropdownList', '$.combo.filteredItems']
+               
+                const path = 'filteredItems';
+                const length = (this.get(path) || []).length;
+                length > 0 && this.splice(path, 0, length);
+            }
+
+            _getItemDisplayName(item) {
+                return item[this.itemDisplayPath];
+            }
+            _onLabelDisplayPathChanged() {
+                this._debounce({
+                    id: 'labelDisplayPath', timeout: 1, fn: () => {
+                        const { itemLabelPath: label, itemDisplayPath: display } = this;
+                        if (label && !display) {
+                            this.itemDisplayPath = label;
+                        }
+                        else if (!label && display) {
+                            this.itemLabelPath = display;
+                        }
+                    }
+                });
+            }
+            _debounce({ id, timeout, fn }) {
+                if (!timeout) { timeout = 100;}
+                const dbId = `dbid-${id}`;
+                this[dbId] = Polymer.Debouncer.debounce(this[dbId],
+                    Polymer.Async.timeOut.after(timeout),
+                    fn.bind(this));
+            }
+            _dispatchEvent(e) {                
+                e.stopPropagation && e.stopPropagation();
+                const { type, detail } = e;
+                const event = new CustomEvent(type,
+                    { bubbles: true, composed: true, detail });
+                this.dispatchEvent(event);
+            }
+
+
+        }
+
+        window.customElements.define(TypeAhead.is, TypeAhead);
+    </script>
+</dom-module>

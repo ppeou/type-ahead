@@ -1,0 +1,181 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+    <title>type-ahead demo</title>
+    <script src="../../bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+    <link rel="import" href="../../bower_components/iron-demo-helpers/demo-pages-shared-styles.html">
+    <link rel="import" href="../../bower_components/iron-demo-helpers/demo-snippet.html">
+    <link rel="import" href="../type-ahead.html">
+    <custom-style>
+        <style is="custom-style" include="demo-pages-shared-styles">
+        </style>
+    </custom-style>
+</head>
+<body>
+    <dom-module id="sample-demo-element">
+        <template>
+            <style>
+                :host {
+                    display: block;
+                }
+
+                td {
+                    width: 200px
+                }
+            </style>
+
+            <table>
+                <tr>
+                    <td>
+                        <type-ahead id="typeAhead1"
+                                    label="Dynamic List"
+                                    minimum-search-char="1"
+                                    dropdown-list="{{dropdownList1}}"
+                                    filter-service
+                                    item-value-path="id"
+                                    item-label-path="sid"
+                                    item-display-path="name"
+                                    value="{{value1}}"
+                                    text="{{text1}}"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                    <td>
+                        <type-ahead id="typeAhead2"
+                                    label="Static List"
+                                    dropdown-list="[[dropdownList2]]"
+                                    text="{{text2}}"
+                                    value="{{value2}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    item-display-path="label"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <type-ahead id="typeAhead3"
+                                    label="Dynamic List - Default Value"
+                                    minimum-search-char="1"
+                                    dropdown-list="{{dropdownList1}}"
+                                    filter-service
+                                    item-value-path="id"
+                                    item-label-path="sid"
+                                    item-display-path="name"
+                                    value="{{value3}}"
+                                    text="{{text3}}"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                    <td>
+                        <type-ahead id="typeAhead4"
+                                    label="Static - List Default Value"
+                                    dropdown-list="[[dropdownList2]]"
+                                    text="{{text4}}"
+                                    value="{{value4}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    item-display-path="label"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <type-ahead label="Has Place Holder"
+                                    placeholder="my placeholder">
+                        </type-ahead>
+                    </td>
+                    <td>
+                        <type-ahead label="disabled"
+                                    disabled>
+                        </type-ahead>
+                    </td>
+                </tr>
+            </table>
+            <button on-click="_viewData">View Data</button>
+        </template>
+        <script>
+            const sampleList = () => {
+                return [
+                    { id: 101, sid: 'I123456', name: 'David Jonh' },
+                    { id: 102, sid: 'O123456', name: 'Smith Villa' },
+                    { id: 103, sid: 'U123456', name: 'Salomon James' },
+                ];
+            };
+
+            class SampleDemoElement extends Polymer.Element {
+                static get is() { return 'sample-demo-element'; }
+                static get properties() {
+                    return {
+                        value1: String,
+                        text1: String,
+                        value2: String,
+                        text2: String,
+                        value3: { type: String, value: 'Z999999' },
+                        text3: { type: String, value: 'Sammy Andrew' },
+                        value4: { type: String, value: 'DD' },
+                        text4: { type: String, value: 'This is DD' },
+                        dropdownList2: {
+                            type: Array,
+                            value: [
+                                { id: 1, code: 'AA', name: 'This is AA', label: '[AA] This is AA' },
+                                { id: 2, code: 'BB', name: 'This is BB', label: '[BB] This is BB' },
+                                { id: 3, code: 'CC', name: 'This is CC', label: '[CC] This is CC' },
+                            ]
+                        }
+                    };
+                }
+                _onTypeAheadEvent(e) {
+                    console.log('-->demo:', e.type, e.detail.value);
+                    if (e.type === 'filter-changed') {
+                        const text = e.detail.value;
+                        console.log('text: ', text);
+                        setTimeout(() => {
+                            this.set('dropdownList1', text ? sampleList(): []);
+                        }, 1000);
+                    }
+
+                }
+                _viewData(e) {
+
+                    console.log('value 1:', this.value1, this.text1);
+                    console.log('value 2:', this.value2, this.text2);
+                    console.log('value 3:', this.value3, this.text3);
+                    console.log('value 4:', this.value4, this.text4);
+                }
+            }
+
+            window.customElements.define(SampleDemoElement.is, SampleDemoElement);
+        </script>
+    </dom-module>
+
+    <div class="vertical-section-container centered">
+        <h3>Basic type-ahead demo</h3>
+        <demo-snippet>
+            <template>
+                <sample-demo-element></sample-demo-element>
+            </template>
+        </demo-snippet>
+    </div>
+</body>
+</html>
