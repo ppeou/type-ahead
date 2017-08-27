@@ -85,7 +85,7 @@
                     <td>
                         <type-ahead id="typeAhead4"
                                     label="Static - List Default Value"
-                                    dropdown-list="[[dropdownList2]]"
+                                    dropdown-list="[[dropdownList4]]"
                                     text="{{text4}}"
                                     value="{{value4}}"
                                     item-value-path="code"
@@ -113,6 +113,9 @@
                 </tr>
             </table>
             <button on-click="_viewData">View Data</button>
+            <button on-click="_setValue2">Set Value 2</button>
+            <button on-click="_setList">Set List 4</button>
+
         </template>
         <script>
             const sampleList = () => {
@@ -133,7 +136,7 @@
                         text2: String,
                         value3: { type: String, value: 'Z999999' },
                         text3: { type: String, value: 'Sammy Andrew' },
-                        value4: { type: String, value: 'DD' },
+                        value4: { type: String, value: 'CC' },
                         text4: { type: String, value: 'This is DD' },
                         dropdownList2: {
                             type: Array,
@@ -150,18 +153,32 @@
                     if (e.type === 'filter-changed') {
                         const text = e.detail.value;
                         console.log('text: ', text);
-                        setTimeout(() => {
-                            this.set('dropdownList1', text ? sampleList(): []);
-                        }, 1000);
+                        if (text) {
+                            setTimeout(() => {
+                                this.set('dropdownList1', sampleList());
+                            }, 1000);
+                        }
                     }
 
                 }
+
+                _setValue2(e) {
+                    if (!this.idx2) { this.idx2 = 0; }
+                    this.value2 = this.dropdownList2[this.idx2].code;
+                    console.log(this.value2);
+                    this.idx2 += 1;
+                }
+
                 _viewData(e) {
 
                     console.log('value 1:', this.value1, this.text1);
                     console.log('value 2:', this.value2, this.text2);
                     console.log('value 3:', this.value3, this.text3);
                     console.log('value 4:', this.value4, this.text4);
+                }
+                _setList(e) {
+                    this.set('dropdownList4', this.dropdownList2);
+
                 }
             }
 

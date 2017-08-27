@@ -10,31 +10,39 @@
             :host {
                 display: block;
             }
+
                 :host[hidden], :host.hidden {
                     display: none;
                 }
-                
         </style>
         <vaadin-combo-box-light id="combo"
                                 attr-for-value="value"
                                 allow-custom-value="[[allowCustomValue]]"
                                 filter="{{filterText}}"
                                 on-blur="_onBlur"
+                                value="{{itemValue}}"
                                 loading="[[loading]]"
-                                overlay-vertical-offset="[[overlayVerticalOffset]]"                                
+                                overlay-vertical-offset="[[overlayVerticalOffset]]"
                                 filtered-items="[[filteredItems]]"
                                 items="[[items]]"
                                 item-value-path="[[itemValuePath]]"
                                 item-label-path="[[itemLabelPath]]"
                                 item-display-path="[[itemDisplayPath]]"
                                 hidden$="[[hidden]]"
-                                on-custom-value-set="_onSelectedItemChanged"
-                                on-selected-item-changed="_onSelectedItemChanged"
-                                on-vaadin-dropdown-closed="_onVaadinEvent"
-                                on-vaadin-dropdown-opened="_onVaadinEvent"> 
+                                on-custom-value-set="_onVaadinEventFired"
+                                on-selected-item-changed="_onVaadinEventFired"
+                                on-vaadin-dropdown-closed="_onVaadinEventFired"
+                                on-vaadin-dropdown-opened="_onVaadinEventFired">
+            <!--on-custom-value-set="_onSelectedItemChanged"
+                        on-selected-item-changed="_onSelectedItemChanged"
+                        on-vaadin-dropdown-closed="_onVaadinEvent"
+                        on-vaadin-dropdown-opened="_onVaadinEvent" -->
+
             <paper-input id="display"
                          label="[[label]]"
-                         value="[[text]]"
+                         value="{{itemLabel}}"
+                         on-keyup="_onKeypressed"
+                         on-focus="_onPaperInputFocus"
                          no-label-float="[[noLabelFloat]]"
                          always-float-label="[[alwaysFloatLabel]]"
                          placeholder$="[[placeholder]]"
@@ -45,7 +53,9 @@
             </paper-input>
             <template>
                 <style>
-                    :host{color: red;}
+                    :host {
+                        color: red;
+                    }
                 </style>
                 <span title="[[_getItemDisplayName(item)]]">[[_getItemDisplayName(item)]]</span>
             </template>
@@ -62,20 +72,32 @@
          */
         let idx = 1;
         class TypeAhead extends Polymer.Element {
+            constructor() {
+                super();
+                this.ACTION = {
+                    OPENED: 'opened',
+                    CLOSED: 'closed',
+                    CHANGED: 'changed'
+                };
+                this.lastFilterText = '';
+            }
             static get is() { return 'type-ahead'; }
             static get observers() {
                 return [
+                    //'_onDynamicListFilterTextChanged(filterText)',
                     '_onValueTextChanged(value, text)',
                     '_onDropdownListChanged(dropdownList)',
-                   '_onLabelDisplayPathChanged(itemLabelPath,itemDisplayPath)'
+                    '_onLabelDisplayPathChanged(itemLabelPath,itemDisplayPath)'
                 ];
             }
             connectedCallback() {
                 super.connectedCallback();
                 this._ensureAttribute('always-float-label', '');
-                if (this.filterService) {
-                    this._createPropertyObserver('filterText', '_onFilterTextChanged', true);
-                }
+                let filterTextObserver = !this.filterService ? '_onStaticListFilterTextChanged' : '_onDynamicListFilterTextChanged';                
+                this._createPropertyObserver('filterText', filterTextObserver, true);
+                
+                this.$.combo._prefillFocusedItemLabel = () => { return; }
+
                 window['typeAhead' + idx] = this;
                 idx++;
             }
@@ -90,25 +112,113 @@
                     invalid: { type: Boolean, value: false },
                     autoValidate: { type: Boolean, value: false },
                     filterService: { type: Boolean, value: false },
+                    items: Array,
+                    filteredItems: Array,
                     itemValuePath: String,
                     itemLabelPath: String,
                     itemDisplayPath: String,
+                    lastFilterText: String,
                     value: { type: String, notify: true },
                     text: { type: String, notify: true }
                 };
-            }            
+            }
+            _onPaperInputFocus(e) {                
+                this.filterService && (this.loading = false);
+            }
+            _onKeypressed(e) {
+                if (this.$.display.value === '') {                    
+                    this.$.combo.selectedItem && this._clearSelectedItem();                        
+                    this._clearFilteredItems();
+                }
+            }
+            _clearSelectedItem() {
+                this.setProperties({
+                    'lastFilterText': '',
+                    'selectedItem': null,
+                    '$.combo.selectedItem': null
+                });
+            }
+            _clearEventQueue() {
+                this.lastFilterText = this.$.display.value;
+                this.eventQueue = {};
+            }
+
+            _getActionFromEventName(name) {
+                return (name.split('-')).pop();
+            }
+
+            _handleOpenedChangedClosedEvents() {
+                if (this.eventQueue) {
+                    const { opened, changed, closed } = this.eventQueue;
+
+                    console.log('filterText', '-',
+                        this.lastFilterText, '|',
+                        this.$.display.$.input.value, '|',
+                        this.$.display.value, '|',
+                        this.filterText, '-');
+
+                    if (opened && changed && closed) {
+                        const { label, value, fromParent } = this._getItemValueLabel(changed.value);
+                        if (fromParent !== true) {
+                            this.srcOfChanged = true;
+                            this.setProperties({ 'text': label, 'value': value });
+                            console.log('changed', changed.value);
+                            console.warn('---dispatch event---');
+                            this._dispatchEvent(changed.e);
+                        }
+                    }
+                    else if (opened && closed) {
+                        if (this.selectedItem && this.selectedItem.fromParent) {
+                            this.srcOfChanged = 'top';
+                            const { value, label } = this._getItemValueLabel(this.selectedItem);
+                            this._forceSetValueLabelToVaadin(value, label);
+                        }
+                    }
+                }
+            }
+
+            _onVaadinEventFired(e) {
+                if (e) {
+                    e.stopPropagation && e.stopPropagation();
+                    const { type, target, detail } = e;
+                    const value = detail.value;
+                    const action = this._getActionFromEventName(type);
+                    if (action === this.ACTION.OPENED) {
+                        this._clearEventQueue();
+                    }
+                    console.log('->>', type, value);
+
+                    if (action === this.ACTION.CHANGED &&
+                        this.srcOfChanged === 'top') {
+                        this.selectedItem = value;
+                        this.srcOfChanged = 'bottom';
+                        this.text = this.$.display.value;
+                    }
+
+                    if (this.eventQueue) {
+                        this.eventQueue[action] = {
+                            e: e,
+                            value: value
+                        }
+                        this._debounce({
+                            id: 'changedClosedEvents',
+                            timeout: 1,
+                            fn: this._handleOpenedChangedClosedEvents
+                        });
+                    }
+                }
+            }
+
             _onSelectedItemChanged(e) {
                 if (e) {
                     const item = e.detail.value;
                     const { label, value } = this._getItemValueLabel(item);
-                    console.log('>>>', label, value, e.detail.value);
+                    console.warn('>>>', label, value, e.detail.value);
 
                     this.setProperties({ 'text': label, 'value': value });
 
-                    this._dispatchEvent(e);
-                    if (this.filterService) {
-                        this._clearFilteredItems();
-                    }
+                    this._dispatchEvent(e);                    
+                    this._clearFilteredItems();
                 }
             }
             _onVaadinEvent(e) {
@@ -116,10 +226,8 @@
             }
 
             _onDropdownListChanged(value) {
-                if (this.filterService) {
-                    console.log('here',value);
-                    //this.set('filteredItems',value);
-                    this.set('items', value);
+                if (this.filterService) {            
+                    this.filteredItems = value;
                     this.loading = false;
                 }
                 else {
@@ -127,45 +235,50 @@
                 }
             }
 
-            _onValueTextChanged(value, text) {
+            _onValueTextChanged(value, label) {
                 this._debounce({
-                    id: 'valueText', timeout: 1, fn: () => {
-                        this.setProperties({
-                            '$.combo.value': value,
-                            '$.display.value': text,
-                        });
-                    }
+                    id: 'valueText', timeout: 1,
+                    fn: this._forceSetValueLabelToVaadin.bind(this, value, label)
                 });
             }
-
-            _onFilterTextChanged(text) {
-                if (!this.firstFilterTextChange) {
+            _onStaticListFilterTextChanged(text) {
+                console.log('-?', this.lastFilterText, '|', text, '-?')
+                if (this.lastFilterText !== text) {
                     this.lastFilterText = text;
-                    this.firstFilterTextChange = true;
-                    this.filterText = undefined;
-                    return;
+                    console.error('------------');
+                    console.log(this.$.combo._focusedIndex);
+                    console.log(this.$.display.value);
+                    console.log(this.lastFilterText);
+                    console.log(this.$.combo.$.overlay._focusedItem);
+                    console.error('------------');
+                    /*this.setProperties({
+                        '$.combo.value': null,
+                        '$.display.value': text,
+                    });*/
                 }
-                if (this.filterText !== undefined) {
-                    this._debounce({ id: 'filterText', timeout: 400, fn: () => {
-                        if(text.length == 0 || (text.length >= this.minimumSearchChar)) {
-                            if (text !== this.lastFilterText) {
-                                this.loading = true;
-                                this.lastFilterText = text;
-                                this._clearFilteredItems();
-                                this._dispatchEvent({
-                                    type: 'filter-changed',
-                                    target: this, detail: { value: text }
-                                });
+            }
+            _onDynamicListFilterTextChanged(text) {
+                if (this.lastFilterText !== text) {
+                    this._debounce({
+                        id: 'filterText', timeout: 400, fn: () => {
+                            if (text.length == 0 || (text.length >= this.minimumSearchChar)) {
+                                if (text !== this.lastFilterText) {
+                                    this.loading = true;
+                                    this.lastFilterText = text;
+                                    this._clearFilteredItems();
+                                    this._dispatchEvent({
+                                        type: 'filter-changed',
+                                        target: this, detail: { value: text }
+                                    });
+                                }
                             }
                         }
-                    } });
+                    });
                 }
             }
 
             _onBlur(e) {
-                if (this.filterService) {
-                    this._clearFilteredItems();
-                }
+                this._clearFilteredItems();
             }
 
             _getItemValueLabel(item) {
@@ -175,13 +288,20 @@
                 return { label, value };
             }
 
-            _clearFilteredItems() {
-                //let length;
-                //['filteredItems', 'dropdownList', '$.combo.filteredItems']
-               
-                const path = 'filteredItems';
+            _clearFilteredItems() {                
+                    this.setProperties({ /*'items': undefined, */'filteredItems': undefined });
+                }
+                //'_setOverlayItems'
+                //this.$.combo._setOverlayItems(undefined);
+
+
+                /*['items', 'filteredItems'].forEach((i) => {
+                    //length = (this.get(i) || []).length;
+                    //length > 0 && this.splice(i, 0, length);
+                });*/
+                /*const path = 'items';//'filteredItems';
                 const length = (this.get(path) || []).length;
-                length > 0 && this.splice(path, 0, length);
+                length > 0 && this.splice(path, 0, length);*/
             }
 
             _getItemDisplayName(item) {
@@ -200,22 +320,72 @@
                     }
                 });
             }
+
+
+            _forceSetValueLabelToVaadin(value, label) {
+                const labelPath = '$.combo._inputElementValue';
+                const valuePath = '$.combo.value';
+                //const labelPath = 'itemLable';
+                //const valuePath = 'itemValue';
+
+                if (this.srcOfChanged !== 'bottom') {
+                    let vaadinItem = {};
+                    let typeAheadItem = {};
+                    let item = { fromParent: true };
+                    if (value) {
+                        vaadinItem[valuePath] = value;
+                        typeAheadItem['value'] = value;
+                        item[this.itemValuePath] = value;
+
+                    }
+                    if (label) {
+                        vaadinItem[labelPath] = label;
+                        typeAheadItem['text'] = label;
+                        item[this.itemLabelPath] = label;
+                    }
+                    console.error('_forceSetValueLabelToVaadin', value, label, vaadinItem);
+
+                    this.srcOfChanged = 'top';
+                    this.setProperties(Object.assign({}, vaadinItem, typeAheadItem,
+                        { selectedItem: item }));
+
+                    /*let item = { fromParent: true };
+                    item[this.itemValuePath] = value;
+                    item[this.itemLabelPath] = label;
+
+                    let method = 1;
+                    if (this.filterService) {
+                        method = 2;
+                    }
+                    if (method === 1) {
+                        this.set('$.combo.value', value);
+                    }
+                    else if (method === 2) {
+                        //this.$.combo.selectedItem = item;
+                        this.setProperties({
+                            '$.combo.value': value,
+                            '$.display.value': label,
+                        });
+                    }*/
+                }
+                this.srcOfChanged = undefined;
+            }
+
             _debounce({ id, timeout, fn }) {
-                if (!timeout) { timeout = 100;}
+                if (!timeout) { timeout = 100; }
                 const dbId = `dbid-${id}`;
                 this[dbId] = Polymer.Debouncer.debounce(this[dbId],
                     Polymer.Async.timeOut.after(timeout),
                     fn.bind(this));
             }
-            _dispatchEvent(e) {                
+            _dispatchEvent(e) {
+                console.warn('send to parent', e.type);
                 e.stopPropagation && e.stopPropagation();
                 const { type, detail } = e;
                 const event = new CustomEvent(type,
                     { bubbles: true, composed: true, detail });
                 this.dispatchEvent(event);
             }
-
-
         }
 
         window.customElements.define(TypeAhead.is, TypeAhead);
