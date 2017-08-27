@@ -29,6 +29,45 @@
             <table>
                 <tr>
                     <td>
+                        <type-ahead id="typeAhead7"
+                                    label="Dynamic List Required Auto Validate"
+                                    auto-validate
+                                    required
+                                    minimum-search-char="1"
+                                    dropdown-list="{{dropdownList7}}"
+                                    filter-service
+                                    item-value-path="id"
+                                    item-label-path="sid"
+                                    item-display-path="name"
+                                    value="{{value1}}"
+                                    text="{{text1}}"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                    <td>
+                        <type-ahead id="typeAhead8"
+                                    label="Static List Required Auto Validate"
+                                    dropdown-list="[[dropdownList2]]"
+                                    required auto-validate
+                                    text="{{text2}}"
+                                    value="{{value2}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    item-display-path="label"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
                         <type-ahead id="typeAhead1"
                                     label="Dynamic List"
                                     minimum-search-char="1"
@@ -68,7 +107,7 @@
                         <type-ahead id="typeAhead3"
                                     label="Dynamic List - Default Value"
                                     minimum-search-char="1"
-                                    dropdown-list="{{dropdownList1}}"
+                                    dropdown-list="{{dropdownList3}}"
                                     filter-service
                                     item-value-path="id"
                                     item-label-path="sid"
@@ -149,13 +188,15 @@
                     };
                 }
                 _onTypeAheadEvent(e) {
-                    console.log('-->demo:', e.type, e.detail.value);
+                    console.log('-->demo:', e.target.id, e.type, e.detail.value);
+                    let id = e.target.id;
+                    id = id.substring(id.length - 1);
                     if (e.type === 'filter-changed') {
                         const text = e.detail.value;
                         console.log('text: ', text);
                         if (text) {
                             setTimeout(() => {
-                                this.set('dropdownList1', sampleList());
+                                this.set(`dropdownList${id}`, sampleList());
                             }, 1000);
                         }
                     }
@@ -170,7 +211,6 @@
                 }
 
                 _viewData(e) {
-
                     console.log('value 1:', this.value1, this.text1);
                     console.log('value 2:', this.value2, this.text2);
                     console.log('value 3:', this.value3, this.text3);
