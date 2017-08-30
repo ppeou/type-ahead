@@ -29,6 +29,44 @@
             <table>
                 <tr>
                     <td>
+                        <type-ahead id="typeAhead9"
+                                    label="Custom Dynamic List"
+                                    minimum-search-char="1"
+                                    allow-custom-value
+                                    dropdown-list="{{dropdownList9}}"
+                                    filter-service
+                                    item-value-path="id"
+                                    item-label-path="sid"
+                                    item-display-path="name"
+                                    value="{{value9}}"
+                                    text="{{text9}}"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                    <td>
+                        <type-ahead id="typeAhead10"
+                                    label="Custom Static List"
+                                    dropdown-list="[[dropdownList2]]"
+                                    allow-custom-value
+                                    text="{{text10}}"
+                                    value="{{value10}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    item-display-path="label"
+                                    on-filter-changed="_onTypeAheadEvent"
+                                    on-custom-value-set="_onTypeAheadEvent"
+                                    on-selected-item-changed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-closed="_onTypeAheadEvent"
+                                    on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                        </type-ahead>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
                         <type-ahead id="typeAhead7"
                                     label="Dynamic List Required Auto Validate"
                                     auto-validate
@@ -39,8 +77,8 @@
                                     item-value-path="id"
                                     item-label-path="sid"
                                     item-display-path="name"
-                                    value="{{value1}}"
-                                    text="{{text1}}"
+                                    value="{{value7}}"
+                                    text="{{text7}}"
                                     on-filter-changed="_onTypeAheadEvent"
                                     on-custom-value-set="_onTypeAheadEvent"
                                     on-selected-item-changed="_onTypeAheadEvent"
@@ -53,8 +91,8 @@
                                     label="Static List Required Auto Validate"
                                     dropdown-list="[[dropdownList2]]"
                                     required auto-validate
-                                    text="{{text2}}"
-                                    value="{{value2}}"
+                                    text="{{text8}}"
+                                    value="{{value8}}"
                                     item-value-path="code"
                                     item-label-path="name"
                                     item-display-path="label"
@@ -211,10 +249,13 @@
                 }
 
                 _viewData(e) {
-                    console.log('value 1:', this.value1, this.text1);
-                    console.log('value 2:', this.value2, this.text2);
-                    console.log('value 3:', this.value3, this.text3);
-                    console.log('value 4:', this.value4, this.text4);
+                    let i = 1;
+                    while (i <= 10) {
+                        console.log(`value ${i}:`,
+                            this[`value${i}`],
+                            this[`text${i}`]);
+                        i += 1;
+                    }
                 }
                 _setList(e) {
                     this.set('dropdownList4', this.dropdownList2);

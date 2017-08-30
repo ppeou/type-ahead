@@ -17,8 +17,8 @@
         </style>
         <vaadin-combo-box-light id="combo"
                                 attr-for-value="value"
-                                allow-custom-value="[[allowCustomValue]]"
                                 filter="{{filterText}}"
+                                allow-custom-value
                                 on-blur="_onBlur"
                                 value="{{itemValue}}"
                                 loading="[[loading]]"
@@ -107,6 +107,7 @@
                     autoValidate: { type: Boolean, value: false },
                     required: { type: Boolean, value: false },
                     filterService: { type: Boolean, value: false },
+                    allowCustomValue: { type: Boolean, value: false },
                     items: Array,
                     filteredItems: Array,
                     itemValuePath: String,
@@ -118,34 +119,24 @@
                     text: { type: String, notify: true }
                 };
             }
-            /*Dynamicall add removed observer*/
-            /*_onFilterServiceChanged(filterService) {
-                const propName = 'filterText';
-                const methodName = '_onDynamicListFilterTextChanged';
-                if (filterService) {
-                    this._createPropertyObserver(propName, methodName, true);
-                }
-                else {
-                    if (this.__observeEffects && this.__observeEffects.filterText && this.__observeEffects.filterText[0]) {
-                        const effect = this.__observeEffects[propName][0];
-                        this._removePropertyEffect(propName, '__observeEffects', effect);
-                    }
-                }
-            }*/
+
             _onPaperInputFocus(e) {
                 this.filterService && (this.loading = false);
             }
+
             _onKeypressed(e) {
-                if (this.$.display.value === '') {
-                    this.$.combo.selectedItem && this._clearSelectedItem();
+                if (!this.$.display.value) {
+                    (this.selectedItem || this.$.combo.selectedItem) && this._clearSelectedItem();
                     this._clearFilteredItems();
                 }
             }
             _clearSelectedItem() {
                 this.setProperties({
+                    'itemValue': undefined,
+                    'itemLabel': '',
                     'lastFilterText': '',
-                    'selectedItem': null,
-                    '$.combo.selectedItem': null
+                    'selectedItem': undefined,
+                    '$.combo.selectedItem': undefined
                 });
             }
             _clearEventQueue() {
@@ -159,29 +150,22 @@
 
             _handleOpenedChangedClosedEvents() {
                 if (this.eventQueue) {
-                    const { opened, changed, closed } = this.eventQueue;
-
-                    if (opened && changed && closed) {
-                        const { label, value, fromParent } = this._getItemValueLabel(changed.value);
+                    const { opened, changed, closed} = this.eventQueue;                    
+                    if (opened && changed && closed) {                        
+                        const { label, value } = this._getItemValueLabel(changed.value);
                         if (this.srcOfChanged !== 'top') {
                             this.srcOfChanged = 'bottom';
                             this.setProperties({
                                 text: label, value: value,
-                                selectedItem: this.$.combo.selectedItem
+                                selectedItem: changed.value
                             });
+                            
                             this._dispatchEvent(changed.e);
                         }
                     }
-                    else if (opened && closed) {
-                        if (this.selectedItem && this.selectedItem.fromParent) {
-                            this.srcOfChanged = 'top';
-                            const { value, label } = this._getItemValueLabel(this.selectedItem);
-                            this._forceSetValueLabelToVaadin(value, label);
-                        }
-                    }
-
                     if (closed) {
                         this.lastFilterText = '';
+                        this.filterService && this._clearFilteredItems();
                     }
                 }
             }
@@ -189,37 +173,57 @@
             _onVaadinEventFired(e) {
                 if (e) {
                     e.stopPropagation && e.stopPropagation();
-                    const { type, target, detail } = e;
-                    const value = detail.value;
-                    const action = this._getActionFromEventName(type);
+                    const { type, detail } = e;
+                    let value = detail.value;
+                    let action = this._getActionFromEventName(type);
                     if (action === this.ACTION.OPENED) {
                         this._clearEventQueue();
-                    }
-
+                    }                   
                     /*Handle when parent set value and label to Vaadin and it is not found in the list*/
                     if (action === this.ACTION.CHANGED &&
                         this.srcOfChanged === 'top') {
                         this.srcOfChanged = undefined;
-                        if (value === null && this.value) {
-
-                        }
-                        /*this.srcOfChanged = 'bottom';
-                        this.selectedItem = value;
-                        this.text = this.$.display.value;*/
                     }
                     else {
                         this.srcOfChanged = 'bottom';
                     }
+                    console.log(action, value);
+                    if (type === 'custom-value-set') {                        
+                        let customValue = e.detail;                        
+                        if (this.allowCustomValue) {
+                            if (typeof customValue !== 'string') {
+                                customValue = null;
+                            }
+                            if (this.lastCustomValue === customValue) {
+                                return;
+                            }
+                            this.lastCustomValue = customValue;
+                            if ((customValue || '').length > 0) {
+                                value = this._createSelectedItem(customValue, customValue);
+                                value.isCustomValue = true;                                                   
+                            }
+                            else {
+                                value = null;
+                            }
 
+                            e.detail = { value: value };
+                            console.log('>>', action, value);
+                            action = 'changed';             
+                        }                        
+                    }
+
+                    
                     if (this.eventQueue) {
-                        this.eventQueue[action] = {
-                            e: e,
-                            value: value
+                        if (!this.eventQueue[action]) {
+                            this.eventQueue[action] = {
+                                e: e,
+                                value: value
+                            }
+                            this._debounce({
+                                id: 'openedChangedClosedEvents',
+                                fn: this._handleOpenedChangedClosedEvents
+                            });
                         }
-                        this._debounce({
-                            id: 'openedChangedClosedEvents',
-                            fn: this._handleOpenedChangedClosedEvents
-                        });
                     }
                 }
             }
@@ -237,7 +241,8 @@
             _onValueTextChanged(value, label) {
                 this._debounce({
                     id: 'valueText',
-                    fn: this._forceSetValueLabelToVaadin.bind(this, value, label)
+                    //fn: this._forceSetValueLabelToVaadin.bind(this, value, label)
+                    fn: this._forceSetValueLabelToVaadin
                 });
             }
             _onStaticListFilterTextChanged(text) {
@@ -245,17 +250,23 @@
 
             _onFilterTextChanged(text) {
                 if (this.lastFilterText === undefined && text === '') {
-                    this.itemLabel = undefined;
+                    if (!this._isManualCustomValue()) {
+                        this.itemLabel = undefined;
+                    }
                     this.invalid = false;
                     return;
                 }
                 this.filterService && this._onDynamicListFilterTextChanged(text);
             }
 
-            _onDynamicListFilterTextChanged(text) {
-                
+            _isManualCustomValue() {
+                const label = this.$.display.value;
+                const value = this.$.combo.value;
+                return label === value && (value || '').length > 0;
+            }
+
+            _onDynamicListFilterTextChanged(text) {                
                 if (text !== undefined && this.lastFilterText !== text) {
-                    console.log('here', text);
                     this._debounce({
                         id: 'filterText', timeout: 400, fn: () => {
                             if (text.length == 0 || (text.length >= this.minimumSearchChar)) {
@@ -306,7 +317,17 @@
                 });
             }
 
-            _forceSetValueLabelToVaadin(value, label) {
+            _createSelectedItem(value, lable) {
+                let item = {};
+                value && (item[this.itemValuePath] = value);
+                lable && (item[this.itemLabelPath] = lable);
+
+                return item;
+            }
+
+            _forceSetValueLabelToVaadin() {
+                const value = this.value;
+                const label = this.text;
                 const labelPath = '$.combo._inputElementValue';
                 const valuePath = '$.combo.value';
                 let vaadinItem = {};
@@ -315,16 +336,17 @@
                     this.srcOfChanged = 'top';
                     let vaadinItem = {};
                     let typeAheadItem = {};
-                    let item = { fromParent: true };
+                    let item = this._createSelectedItem(value, label);
+                    item.fromParent = true;                    
+                    vaadinItem['selectedItem'] = item;
                     if (value) {
                         vaadinItem[valuePath] = value;
-                        item[this.itemValuePath] = value;
                     }
                     if (label) {
                         vaadinItem[labelPath] = label;
-                        item[this.itemLabelPath] = label;
                     }
-                    this.setProperties(Object.assign({}, vaadinItem, { selectedItem: item }));
+                    
+                    this.setProperties(vaadinItem);
                 }
                 else {
                     this.srcOfChanged = undefined;
