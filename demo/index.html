@@ -25,6 +25,30 @@
                     width: 200px
                 }
             </style>
+            <table>
+                <tr>
+                    <td>
+                        <type-ahead id="typeAhead11"
+                                    label="Tabular Format"
+                                    dropdown-list="[[dropdownList2]]"
+                                    offset="-8"
+                                    required auto-validate
+                                    text="{{text11}}"
+                                    value="{{value11}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    on-selected-item-changed="_onTypeAheadEvent">
+                            <template>
+                                <ul>
+                                    <li>
+                                        [[item.code]] | [[item.name]] | [[item.lable]]
+                                    </li>
+                                </ul>
+                            </template>
+                        </type-ahead>
+                    </td>
+                </tr>
+            </table>
 
             <table>
                 <tr>
@@ -34,6 +58,7 @@
                                     minimum-search-char="1"
                                     allow-custom-value
                                     dropdown-list="{{dropdownList9}}"
+                                    minimum-width="400px"
                                     filter-service
                                     item-value-path="id"
                                     item-label-path="sid"
@@ -52,6 +77,7 @@
                                     label="Custom Static List"
                                     dropdown-list="[[dropdownList2]]"
                                     allow-custom-value
+                                    minimum-width="300px"
                                     text="{{text10}}"
                                     value="{{value10}}"
                                     item-value-path="code"
@@ -71,6 +97,7 @@
                                     label="Dynamic List Required Auto Validate"
                                     auto-validate
                                     required
+                                    minimum-width="300px"
                                     minimum-search-char="1"
                                     dropdown-list="{{dropdownList7}}"
                                     filter-service
@@ -84,6 +111,18 @@
                                     on-selected-item-changed="_onTypeAheadEvent"
                                     on-vaadin-dropdown-closed="_onTypeAheadEvent"
                                     on-vaadin-dropdown-opened="_onTypeAheadEvent">
+                            <template>
+                                <style>
+                                    div {
+                                        display: inline-block;
+                                        width: 33%;
+                                        max-width: 33%;
+                                    }
+                                </style>
+                                <div>[[item.id]]</div>
+                                <div>[[item.sid]]</div>
+                                <div title="[[_getName(item.name)]]">[[item.name]]</div>
+                            </template>
                         </type-ahead>
                     </td>
                     <td>
@@ -178,12 +217,26 @@
                 </tr>
                 <tr>
                     <td>
-                        <type-ahead label="Has Place Holder"
+                        <type-ahead id="typeAhead5"
+                                    label="Read Only"
+                                    readonly
+                                    item-value-path="id"
+                                    item-label-path="sid"
+                                    item-display-path="name"
+                                    value="{{value5}}"
+                                    text="{{text5}}"
                                     placeholder="my placeholder">
                         </type-ahead>
                     </td>
                     <td>
-                        <type-ahead label="disabled"
+                        <type-ahead  id="typeAhead6"
+                                    label="disabled"
+                                    dropdown-list="[[dropdownList2]]"
+                                    text="{{text6}}"
+                                    value="{{value6}}"
+                                    item-value-path="code"
+                                    item-label-path="name"
+                                    item-display-path="label"
                                     disabled>
                         </type-ahead>
                     </td>
@@ -212,9 +265,11 @@
                         value2: String,
                         text2: String,
                         value3: { type: String, value: 'Z999999' },
-                        text3: { type: String, value: 'Sammy Andrew' },
+                        text3: { type: String, value: 'Sammy Andrew03' },
                         value4: { type: String, value: 'CC' },
-                        text4: { type: String, value: 'This is DD' },
+                        text4: { type: String, value: 'This is DD04' },
+                      
+
                         dropdownList2: {
                             type: Array,
                             value: [
@@ -260,6 +315,9 @@
                 _setList(e) {
                     this.set('dropdownList4', this.dropdownList2);
 
+                }
+                _getName(name) {
+                    return '>>>' + name;
                 }
             }
 

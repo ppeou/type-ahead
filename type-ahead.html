@@ -22,7 +22,7 @@
                                 on-blur="_onBlur"
                                 value="{{itemValue}}"
                                 loading="[[loading]]"
-                                overlay-vertical-offset="[[overlayVerticalOffset]]"
+                                overlay-vertical-offset="[[offset]]"
                                 filtered-items="[[filteredItems]]"
                                 items="[[items]]"
                                 item-value-path="[[itemValuePath]]"
@@ -44,20 +44,30 @@
                          placeholder$="[[placeholder]]"
                          auto-validate$="[[autoValidate]]"
                          required="[[required]]"
+                         readonly$="[[readonly]]"
                          disabled$="[[disabled]]"
                          invalid="{{invalid}}">
                 <i suffix class="md-icon">arrow_drop_down</i>
             </paper-input>
-            <template>
+            <template id="default">
                 <style>
                     :host {
                         color: red;
+                        background-color: pink;
+                    }
+
+                    span {
+                        color: green;
                     }
                 </style>
-                <span title="[[_getItemDisplayName(item)]]">[[_getItemDisplayName(item)]]</span>
+                <span class="autocomplete" title="[[_getItemDisplayName(item)]]">[[_getItemDisplayName(item)]]</span>
             </template>
         </vaadin-combo-box-light>
     </template>
+
+
+
+
     <script>
         /**
          * `type-ahead`
@@ -78,6 +88,15 @@
                 };
                 this.lastFilterText = undefined;
             }
+
+            _ensureTemplatized() {
+                this._itemTemplate = this.querySelector('template');
+                var inputPlaceholder = this.$.combo.querySelector('template#default');
+                if (this._itemTemplate && inputPlaceholder) {
+                    this.$.combo.replaceChild(this._itemTemplate, inputPlaceholder);
+                }
+            }
+
             static get is() { return 'type-ahead'; }
             static get observers() {
                 return [
@@ -94,6 +113,7 @@
 
                 window['typeAhead' + idx] = this;
                 idx++;
+                this._ensureTemplatized();
             }
             static get properties() {
                 return {
@@ -101,7 +121,9 @@
                     minimumSearchChar: { type: Number, value: 3 },
                     filterText: String,
                     placeholder: String,
+                    offset: { type: Number, value: 0 },
                     alwaysFloatLabel: { type: Boolean, value: false },
+                    readonly: { type: Boolean, value: false },
                     disabled: { type: Boolean, value: false },
                     invalid: { type: Boolean, value: false },
                     autoValidate: { type: Boolean, value: false },
@@ -150,16 +172,16 @@
 
             _handleOpenedChangedClosedEvents() {
                 if (this.eventQueue) {
-                    const { opened, changed, closed} = this.eventQueue;                    
-                    if (opened && changed && closed) {                        
-                        const { label, value } = this._getItemValueLabel(changed.value);
+                    const { opened, changed, closed } = this.eventQueue;
+                    if (opened && changed && closed) {
+                        const { label, value } = this._getItemValueLabel(changed.e.detail.value);
                         if (this.srcOfChanged !== 'top') {
                             this.srcOfChanged = 'bottom';
                             this.setProperties({
                                 text: label, value: value,
-                                selectedItem: changed.value
+                                selectedItem: changed.e.detail.value
                             });
-                            
+
                             this._dispatchEvent(changed.e);
                         }
                     }
@@ -178,7 +200,7 @@
                     let action = this._getActionFromEventName(type);
                     if (action === this.ACTION.OPENED) {
                         this._clearEventQueue();
-                    }                   
+                    }
                     /*Handle when parent set value and label to Vaadin and it is not found in the list*/
                     if (action === this.ACTION.CHANGED &&
                         this.srcOfChanged === 'top') {
@@ -187,32 +209,24 @@
                     else {
                         this.srcOfChanged = 'bottom';
                     }
-                    console.log(action, value);
-                    if (type === 'custom-value-set') {                        
-                        let customValue = e.detail;                        
-                        if (this.allowCustomValue) {
-                            if (typeof customValue !== 'string') {
-                                customValue = null;
-                            }
-                            if (this.lastCustomValue === customValue) {
-                                return;
-                            }
-                            this.lastCustomValue = customValue;
-                            if ((customValue || '').length > 0) {
-                                value = this._createSelectedItem(customValue, customValue);
-                                value.isCustomValue = true;                                                   
-                            }
-                            else {
-                                value = null;
-                            }
-
-                            e.detail = { value: value };
-                            console.log('>>', action, value);
-                            action = 'changed';             
-                        }                        
+                    if (type === 'custom-value-set') {
+                        let tempResult = this._handleCustomValue(e);
+                        if (tempResult === false) { return; }
+                        else {
+                            e.detail = tempResult;
+                        }
+                        action = 'changed';
+                    }
+                    else if (action === 'opened') {
+                        this._onDropdownOpened();
+                    }
+                    else if (action === 'closed') {
+                        this._onDropdownClosed();
+                    }
+                    else if (action === 'changed') {
+                        if (value === undefined) { e.detail.value = null; }
                     }
 
-                    
                     if (this.eventQueue) {
                         if (!this.eventQueue[action]) {
                             this.eventQueue[action] = {
@@ -228,6 +242,71 @@
                 }
             }
 
+            _handleCustomValue(e) {
+                let result = false;
+                let value;
+                let customValue = e.detail;
+                if (this.allowCustomValue) {
+                    if (typeof customValue !== 'string') {
+                        customValue = null;
+                    }
+                    if (this.lastCustomValue === customValue) {
+                        return false;
+
+                    }
+                    this.lastCustomValue = customValue;
+                    if ((customValue || '').length > 0) {
+                        value = this._createSelectedItem(customValue, customValue);
+                        value.isCustomValue = true;
+                    }
+                    else {
+                        value = null;
+                    }
+
+                    return { value: value };
+                }
+                else {
+                    let clearSelectedItem = true;
+                    if (this.selectedItem) {
+                        if (customValue === this._getItemLabel(this.selectedItem)) {
+                            clearSelectedItem = false;
+                        }
+                    }
+                    if (clearSelectedItem) {
+                        this._clearSelectedItem();
+                        return { value: null };
+                    }
+                    else {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            _onDropdownOpened() {
+                this._resizedDropdown();
+            }
+            _onDropdownClosed() {
+                if (this.minimumWidth) {
+                    this.$.combo.$.overlay.style.visibility = 'hidden';
+                }
+            }
+            _resizedDropdown() {
+                if (this.minimumWidth) {
+                    this.$.combo.$.overlay.style.visibility = 'hidden';
+                    const body = document.getElementsByTagName('body')[0];
+                    const overlayNew = body.querySelector('vaadin-combo-box-overlay');
+                    if (overlayNew) {
+                        setTimeout(() => {
+                            overlayNew.style.minWidth = this.minimumWidth;
+                            overlayNew.style.visibility = '';
+                            if (this.top10) {
+                                overlayNew.classList.add('top10');
+                            }
+                        }, 100);
+                    }
+                }
+            }
             _onDropdownListChanged(value) {
                 if (this.filterService) {
                     this.filteredItems = value;
@@ -241,7 +320,6 @@
             _onValueTextChanged(value, label) {
                 this._debounce({
                     id: 'valueText',
-                    //fn: this._forceSetValueLabelToVaadin.bind(this, value, label)
                     fn: this._forceSetValueLabelToVaadin
                 });
             }
@@ -265,7 +343,7 @@
                 return label === value && (value || '').length > 0;
             }
 
-            _onDynamicListFilterTextChanged(text) {                
+            _onDynamicListFilterTextChanged(text) {
                 if (text !== undefined && this.lastFilterText !== text) {
                     this._debounce({
                         id: 'filterText', timeout: 400, fn: () => {
@@ -290,6 +368,9 @@
             }
 
             _getItemValueLabel(item) {
+                if (item === null || item === undefined) {
+                    return { label: item, value: item };
+                }
                 const label = Polymer.Path.get(item, this.itemLabelPath);
                 const value = Polymer.Path.get(item, this.itemValuePath);
 
@@ -317,17 +398,18 @@
                 });
             }
 
-            _createSelectedItem(value, lable) {
+            _createSelectedItem(value, label) {
                 let item = {};
                 value && (item[this.itemValuePath] = value);
-                lable && (item[this.itemLabelPath] = lable);
+                label && (item[this.itemLabelPath] = label);
 
                 return item;
             }
 
             _forceSetValueLabelToVaadin() {
                 const value = this.value;
-                const label = this.text;
+                let label = this.text;
+                let item;
                 const labelPath = '$.combo._inputElementValue';
                 const valuePath = '$.combo.value';
                 let vaadinItem = {};
@@ -336,21 +418,43 @@
                     this.srcOfChanged = 'top';
                     let vaadinItem = {};
                     let typeAheadItem = {};
-                    let item = this._createSelectedItem(value, label);
-                    item.fromParent = true;                    
-                    vaadinItem['selectedItem'] = item;
+
                     if (value) {
                         vaadinItem[valuePath] = value;
+                        item = this._findItemByValue(value);
+                        if (item) {
+                            label = this._getItemLabel(item);
+                            vaadinItem['text'] = label;
+                        }
                     }
                     if (label) {
+                        this.lastCustomValue = label;
                         vaadinItem[labelPath] = label;
                     }
-                    
+
+                    if (!item) {
+                        item = this._createSelectedItem(value, label);
+                        item.fromParent = true;
+                    }
+                    vaadinItem['selectedItem'] = item;
+
                     this.setProperties(vaadinItem);
                 }
                 else {
                     this.srcOfChanged = undefined;
                 }
+            }
+
+            _getItemLabel(item) {
+                return (item || {})[this.itemLabelPath] || '';
+            }
+
+            _findItemByValue(value) {
+                const idx = this.$.combo._indexOfValue(value, this.$.combo.items);
+                if (idx > -1) {
+                    return this.$.combo.items[idx];
+                }
+                return null;
             }
 
             _debounce({ id, timeout, fn }) {
@@ -360,13 +464,24 @@
                     Polymer.Async.timeOut.after(timeout),
                     fn.bind(this));
             }
+
+            _getEventName(name) {
+                const pair = {
+                    'custom-value-set': 'selected-item-changed'
+                };
+                return pair.hasOwnProperty(name) ? pair[name] : name;
+            }
+
             _dispatchEvent(e) {
                 e.stopPropagation && e.stopPropagation();
                 const { type, detail } = e;
-                const event = new CustomEvent(type,
+                const event = new CustomEvent(this._getEventName(type),
                     { bubbles: true, composed: true, detail });
                 this.dispatchEvent(event);
             }
+
+
+
             validate() {
                 return this.$.display.validate();
             }
